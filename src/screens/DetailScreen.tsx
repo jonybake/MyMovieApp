@@ -19,18 +19,6 @@ type DetailScreenProps = {
   navigation: NavigationLike;
 };
 
-type SourceItem = {
-  id: string;
-  label: string;
-  active?: boolean;
-};
-
-type EpisodeItem = {
-  id: string;
-  label: string;
-  active?: boolean;
-};
-
 type RecommendItem = {
   id: string;
   title: string;
@@ -39,20 +27,6 @@ type RecommendItem = {
 };
 
 const videoUrl = 'https://vjs.zencdn.net/v/oceans.mp4';
-
-const sources: SourceItem[] = [
-  { id: '1', label: '高清线路1', active: true },
-  { id: '2', label: '极速蓝光' },
-  { id: '3', label: '高速蓝光' },
-  { id: '4', label: '常规线路' },
-];
-
-const episodes: EpisodeItem[] = [
-  { id: '1', label: '第01集', active: true },
-  { id: '2', label: '第02集' },
-  { id: '3', label: '第03集' },
-  { id: '4', label: '第04集' },
-];
 
 const recommends: RecommendItem[] = [
   {
@@ -74,22 +48,6 @@ const recommends: RecommendItem[] = [
     poster: 'https://image.tmdb.org/t/p/w500/8b8R8l88Qje9dn9OE8PY05Nxl1X.jpg',
   },
 ];
-
-function Chip({
-  label,
-  active,
-}: {
-  label: string;
-  active?: boolean;
-}) {
-  return (
-    <View style={[styles.chip, active && styles.chipActive]}>
-      <Text style={[styles.chipText, active && styles.chipTextActive]}>
-        {label}
-      </Text>
-    </View>
-  );
-}
 
 export default function DetailScreen({ navigation }: DetailScreenProps) {
   return (
@@ -147,46 +105,6 @@ export default function DetailScreen({ navigation }: DetailScreenProps) {
               <Text style={styles.scoreLabel}>豆瓣评分: 7.3</Text>
             </View>
             <Text style={styles.genreText}>爱情</Text>
-          </View>
-
-          <View style={styles.section}>
-            <View style={styles.sectionHeader}>
-              <Text style={styles.sectionTitle}>片源</Text>
-              <Text style={styles.sectionHint}>›</Text>
-            </View>
-            <ScrollView
-              horizontal
-              showsHorizontalScrollIndicator={false}
-              contentContainerStyle={styles.horizontalList}
-            >
-              {sources.map((source) => (
-                <Chip
-                  key={source.id}
-                  label={source.label}
-                  active={source.active}
-                />
-              ))}
-            </ScrollView>
-          </View>
-
-          <View style={styles.section}>
-            <View style={styles.sectionHeader}>
-              <Text style={styles.sectionTitle}>选集</Text>
-              <Text style={styles.sectionHint}>已更新到第22集 ›</Text>
-            </View>
-            <ScrollView
-              horizontal
-              showsHorizontalScrollIndicator={false}
-              contentContainerStyle={styles.horizontalList}
-            >
-              {episodes.map((episode) => (
-                <Chip
-                  key={episode.id}
-                  label={episode.label}
-                  active={episode.active}
-                />
-              ))}
-            </ScrollView>
           </View>
 
           <View style={styles.section}>
@@ -381,33 +299,6 @@ const styles = StyleSheet.create({
     color: '#7f7f7f',
     fontSize: 12,
     fontWeight: '600',
-  },
-  horizontalList: {
-    paddingHorizontal: 18,
-    paddingRight: 4,
-  },
-  chip: {
-    minWidth: 110,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderRadius: 14,
-    backgroundColor: '#2e2e2e',
-    paddingHorizontal: 18,
-    paddingVertical: 14,
-    marginRight: 10,
-  },
-  chipActive: {
-    backgroundColor: '#7e1f1f',
-    borderWidth: 1,
-    borderColor: '#ac3939',
-  },
-  chipText: {
-    color: '#d8d8d8',
-    fontSize: 14,
-    fontWeight: '700',
-  },
-  chipTextActive: {
-    color: '#ffffff',
   },
   recommendRow: {
     paddingHorizontal: 18,

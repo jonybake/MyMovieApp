@@ -1,15 +1,26 @@
-import React from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
+  ActivityIndicator,
   Image,
   ImageBackground,
+  NativeScrollEvent,
+  NativeSyntheticEvent,
   Pressable,
   SafeAreaView,
   ScrollView,
   StatusBar,
   StyleSheet,
   Text,
+  useWindowDimensions,
   View,
 } from 'react-native';
+import {
+  loadMovieGenres,
+  loadPopularMovies,
+  MovieGenre,
+  PopularMovie,
+} from '../api';
+import { getBackdropUrl, getPosterUrl } from '../utils/image';
 
 type NavigationLike = {
   navigate: (screen: string) => void;
@@ -19,80 +30,10 @@ type HomeScreenProps = {
   navigation: NavigationLike;
 };
 
-type HeroMovie = {
-  title: string;
-  subtitle: string;
-  backdrop: string;
-};
-
-type MovieCard = {
-  id: string;
-  title: string;
-  poster: string;
-  tag: string;
-  score: string;
-  meta: string;
-};
-
-const heroMovie: HeroMovie = {
-  title: '沙丘: 第二部',
-  subtitle: '史诗回归  |  沙漠宿命全面展开',
-  backdrop: 'https://image.tmdb.org/t/p/original/1pdfLvkbY9ohJlCjQH2CZjjYVvJ.jpg',
-};
-
-const featuredMovies: MovieCard[] = [
-  {
-    id: '1',
-    title: '你来到我身边',
-    poster: 'https://image.tmdb.org/t/p/w500/o7QoQMa3LnJr3M6vB7f4XwV4j1S.jpg',
-    tag: '热映',
-    score: '7.3',
-    meta: '爱情 / 都市',
-  },
-  {
-    id: '2',
-    title: '夜魔侠：重生',
-    poster: 'https://image.tmdb.org/t/p/w500/9l1eZiJHmhr5jIlthMdJN5WYoff.jpg',
-    tag: '热门',
-    score: '7.9',
-    meta: '动作 / 犯罪',
-  },
-  {
-    id: '3',
-    title: '冬去春来',
-    poster: 'https://image.tmdb.org/t/p/w500/kf5QJo0N5FO9uPjE7YQDdyCjTiM.jpg',
-    tag: '精选',
-    score: '6.8',
-    meta: '剧情 / 治愈',
-  },
-];
-
-const latestMovies: MovieCard[] = [
-  {
-    id: '4',
-    title: '阿凡达3',
-    poster: 'https://image.tmdb.org/t/p/w500/t6HIqrRAclMCA60NsSmeqe9RmNV.jpg',
-    tag: '高清',
-    score: '8.3',
-    meta: '科幻 / 冒险',
-  },
-  {
-    id: '5',
-    title: '浴血黑帮',
-    poster: 'https://image.tmdb.org/t/p/w500/vUUqzWa2LnHIVqkaKVlVGkVcZIW.jpg',
-    tag: '高分',
-    score: '7.4',
-    meta: '剧情 / 犯罪',
-  },
-  {
-    id: '6',
-    title: '飞天家族',
-    poster: 'https://image.tmdb.org/t/p/w500/9Gtg2DzBhmYamXBS1hKAhiwbBKS.jpg',
-    tag: '新片',
-    score: '7.2',
-    meta: '喜剧 / 家庭',
-  },
-];
+function getMovieMeta(movie: PopularMovie) {
+  const year = movie.release_date?.slice(0, 4) || '待定';
+  return `${year} · 热门电影`;
+}
 
 function SectionHeader({
   title,
@@ -105,9 +46,11 @@ function SectionHeader({
 }) {
   return (
     <View style={styles.sectionHeader}>
-        <Text style={styles.sectionTitle}>{title}</Text>
+      <Text style={styles.sectionTitle}>{title}</Text>
       <Pressable onPress={onPress}>
-        <Text style={styles.sectionAction}>{actionLabel} ›</Text>
+        <Text style={styles.sectionAction}>
+          {actionLabel} {'>'}
+        </Text>
       </Pressable>
     </View>
   );
@@ -121,9 +64,13 @@ function MovieSection({
 }: {
   title: string;
   actionLabel: string;
-  movies: MovieCard[];
+  movies: PopularMovie[];
   navigation: NavigationLike;
 }) {
+  if (!movies.length) {
+    return null;
+  }
+
   return (
     <View style={styles.sectionBlock}>
       <SectionHeader
@@ -143,18 +90,21 @@ function MovieSection({
             onPress={() => navigation.navigate('Details')}
           >
             <View style={styles.posterWrap}>
-              <Image source={{ uri: movie.poster }} style={styles.poster} />
+              <Image
+                source={{ uri: getPosterUrl(movie.poster_path) }}
+                style={styles.poster}
+              />
               <View style={styles.tagPill}>
-                <Text style={styles.tagPillText}>{movie.tag}</Text>
+                <Text style={styles.tagPillText}>热门</Text>
               </View>
               <View style={styles.scorePill}>
-                <Text style={styles.scoreText}>★ {movie.score}</Text>
+                <Text style={styles.scoreText}>★ {movie.vote_average.toFixed(1)}</Text>
               </View>
             </View>
             <Text style={styles.movieTitle} numberOfLines={1}>
               {movie.title}
             </Text>
-            <Text style={styles.movieMeta}>{movie.meta}</Text>
+            <Text style={styles.movieMeta}>{getMovieMeta(movie)}</Text>
           </Pressable>
         ))}
       </ScrollView>
@@ -163,6 +113,63 @@ function MovieSection({
 }
 
 export default function HomeScreen({ navigation }: HomeScreenProps) {
+  const [popularMovies, setPopularMovies] = useState<PopularMovie[]>([]);
+  const [movieGenres, setMovieGenres] = useState<MovieGenre[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [activeHeroIndex, setActiveHeroIndex] = useState(0);
+  const { width } = useWindowDimensions();
+  const heroCardWidth = width - 32;
+
+  useEffect(() => {
+    let mounted = true;
+
+    const loadHomeData = async () => {
+      try {
+        const [movies, genres] = await Promise.all([
+          loadPopularMovies(1),
+          loadMovieGenres(),
+        ]);
+
+        if (mounted) {
+          setPopularMovies(movies);
+          setMovieGenres(genres);
+        }
+      } catch (error) {
+        console.error('Failed to load home data', error);
+      } finally {
+        if (mounted) {
+          setLoading(false);
+        }
+      }
+    };
+
+    loadHomeData();
+
+    return () => {
+      mounted = false;
+    };
+  }, []);
+
+  const heroMovies = useMemo(() => popularMovies.slice(0, 3), [popularMovies]);
+  const featuredMovies = useMemo(() => popularMovies.slice(0, 6), [popularMovies]);
+  const latestMovies = useMemo(() => popularMovies.slice(6, 12), [popularMovies]);
+  const topTabs = useMemo(
+    () => ['推荐', ...movieGenres.slice(0, 5).map((genre) => genre.name)],
+    [movieGenres],
+  );
+
+  const handleHeroScroll = (event: NativeSyntheticEvent<NativeScrollEvent>) => {
+    const pageWidth = event.nativeEvent.layoutMeasurement.width;
+    if (!pageWidth) {
+      return;
+    }
+
+    const nextIndex = Math.round(event.nativeEvent.contentOffset.x / pageWidth);
+    if (nextIndex !== activeHeroIndex) {
+      setActiveHeroIndex(nextIndex);
+    }
+  };
+
   return (
     <SafeAreaView style={styles.safeArea}>
       <StatusBar barStyle="light-content" backgroundColor="#05070d" />
@@ -187,12 +194,12 @@ export default function HomeScreen({ navigation }: HomeScreenProps) {
               <Text style={styles.searchText}>搜索你想看的电影</Text>
             </Pressable>
             <Pressable style={styles.iconButton}>
-              <Text style={styles.iconButtonText}>↻</Text>
+              <Text style={styles.iconButtonText}>+</Text>
             </Pressable>
           </View>
 
           <View style={styles.tabRow}>
-            {['推荐', '院线', '电影', '剧集', '经典', '动漫'].map((tab, index) => (
+            {topTabs.map((tab, index) => (
               <Text
                 key={tab}
                 style={[styles.tabText, index === 0 && styles.tabTextActive]}
@@ -202,40 +209,59 @@ export default function HomeScreen({ navigation }: HomeScreenProps) {
             ))}
           </View>
 
-          <Pressable onPress={() => navigation.navigate('Details')}>
-            <ImageBackground
-              source={{ uri: heroMovie.backdrop }}
-              style={styles.heroBanner}
-              imageStyle={styles.heroImage}
-            >
-              <View style={styles.heroOverlay} />
-              <View style={styles.heroContent}>
-                <Text style={styles.heroBadge}>本周焦点</Text>
-                <Text style={styles.heroTitle}>{heroMovie.title}</Text>
-                <Text style={styles.heroSubtitle}>{heroMovie.subtitle}</Text>
-                <View style={styles.heroActions}>
-                  <View style={styles.playButton}>
-                    <Text style={styles.playButtonText}>立即观看</Text>
-                  </View>
-                  <View style={styles.heroDots}>
-                    <View style={[styles.dot, styles.dotActive]} />
-                    <View style={styles.dot} />
-                    <View style={styles.dot} />
-                  </View>
-                </View>
-              </View>
-            </ImageBackground>
-          </Pressable>
-
-          <View style={styles.promoCard}>
+          {loading ? (
+            <View style={styles.loadingHero}>
+              <ActivityIndicator size="large" color="#ff5b55" />
+            </View>
+          ) : heroMovies.length ? (
             <View>
-              <Text style={styles.promoTitle}>限时会员活动</Text>
-              <Text style={styles.promoDesc}>开通影迷季卡，解锁 4K 片库与无广告播放</Text>
+              <ScrollView
+                horizontal
+                pagingEnabled
+                showsHorizontalScrollIndicator={false}
+                onScroll={handleHeroScroll}
+                onMomentumScrollEnd={handleHeroScroll}
+                scrollEventThrottle={16}
+              >
+                {heroMovies.map((item) => (
+                  <View key={item.id} style={[styles.heroPage, { width }]}>
+                    <Pressable onPress={() => navigation.navigate('Details')}>
+                      <ImageBackground
+                        source={{ uri: getBackdropUrl(item.backdrop_path) }}
+                        style={[styles.heroBanner, { width: heroCardWidth }]}
+                        imageStyle={styles.heroImage}
+                      >
+                        <View style={styles.heroOverlay} />
+                        <View style={styles.heroContent}>
+                          <Text style={styles.heroBadge}>热门推荐</Text>
+                          <Text style={styles.heroTitle}>{item.title}</Text>
+                          <Text style={styles.heroSubtitle} numberOfLines={2}>
+                            {item.overview || '当前最受关注的电影，正在热播中。'}
+                          </Text>
+                          <View style={styles.heroActions}>
+                            <View style={styles.playButton}>
+                              <Text style={styles.playButtonText}>立即观看</Text>
+                            </View>
+                          </View>
+                        </View>
+                      </ImageBackground>
+                    </Pressable>
+                  </View>
+                ))}
+              </ScrollView>
+              <View style={styles.heroDotsStandalone}>
+                {heroMovies.map((movie, index) => (
+                  <View
+                    key={movie.id}
+                    style={[
+                      styles.dot,
+                      index === activeHeroIndex && styles.dotActive,
+                    ]}
+                  />
+                ))}
+              </View>
             </View>
-            <View style={styles.promoBadge}>
-              <Text style={styles.promoBadgeText}>立省 30%</Text>
-            </View>
-          </View>
+          ) : null}
 
           <MovieSection
             title="每日推荐"
@@ -251,7 +277,6 @@ export default function HomeScreen({ navigation }: HomeScreenProps) {
             navigation={navigation}
           />
         </ScrollView>
-
       </View>
     </SafeAreaView>
   );
@@ -341,8 +366,18 @@ const styles = StyleSheet.create({
   tabTextActive: {
     color: '#ffffff',
   },
-  heroBanner: {
+  loadingHero: {
+    height: 210,
     marginHorizontal: 16,
+    borderRadius: 24,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#171b28',
+  },
+  heroPage: {
+    alignItems: 'center',
+  },
+  heroBanner: {
     height: 210,
     justifyContent: 'flex-end',
     overflow: 'hidden',
@@ -386,7 +421,7 @@ const styles = StyleSheet.create({
   heroActions: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
+    justifyContent: 'flex-start',
   },
   playButton: {
     backgroundColor: '#ffffff',
@@ -399,10 +434,12 @@ const styles = StyleSheet.create({
     fontWeight: '800',
     fontSize: 13,
   },
-  heroDots: {
+  heroDotsStandalone: {
     flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'center',
     gap: 6,
+    marginTop: 12,
   },
   dot: {
     width: 7,
@@ -413,40 +450,6 @@ const styles = StyleSheet.create({
   dotActive: {
     width: 18,
     backgroundColor: '#ffffff',
-  },
-  promoCard: {
-    marginHorizontal: 16,
-    marginTop: 16,
-    borderRadius: 20,
-    paddingHorizontal: 18,
-    paddingVertical: 16,
-    backgroundColor: '#121a2c',
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-  },
-  promoTitle: {
-    color: '#ffffff',
-    fontSize: 16,
-    fontWeight: '800',
-    marginBottom: 4,
-  },
-  promoDesc: {
-    color: '#94a0bc',
-    fontSize: 12,
-    maxWidth: 220,
-    lineHeight: 18,
-  },
-  promoBadge: {
-    borderRadius: 16,
-    backgroundColor: '#ff5f57',
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-  },
-  promoBadgeText: {
-    color: '#ffffff',
-    fontSize: 12,
-    fontWeight: '800',
   },
   sectionBlock: {
     marginTop: 24,

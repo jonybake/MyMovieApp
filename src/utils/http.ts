@@ -5,14 +5,17 @@ import axios, {
   InternalAxiosRequestConfig,
 } from 'axios';
 
-const TMDB_API_KEY = 'YOUR_TMDB_API_KEY';
-const BASE_URL = '/api';
+const TMDB_BEARER_TOKEN =
+  'Bearer eyJhbGciOiJIUzI1NiJ9.eyJhdWQiOiJjOTkzNGI3YmVlOWQ0MWY1YTU0ODRhMzdiMGVhZWMxZiIsIm5iZiI6MTc3NTQxNjU2Ny44MDE5OTk4LCJzdWIiOiI2OWQyYjRmNzExMzFiMTJmYzc3NzBlODMiLCJzY29wZXMiOlsiYXBpX3JlYWQiXSwidmVyc2lvbiI6MX0.ySP8TOXyz82MjCSW8J0CyEJ7mux2NrVxk6bpOz7RLgM';
 
 const http: AxiosInstance = axios.create({
-  baseURL: BASE_URL,
+  baseURL: '/api',
   timeout: 10000,
+  headers: {
+    Authorization: TMDB_BEARER_TOKEN,
+    accept: 'application/json',
+  },
   params: {
-    api_key: TMDB_API_KEY,
     language: 'zh-CN',
   },
 });
@@ -38,7 +41,7 @@ http.interceptors.response.use(
     if (error.response) {
       switch (error.response.status) {
         case 401:
-          message = '未授权，请检查 API Key';
+          message = '未授权，请检查 Bearer Token';
           break;
         case 404:
           message = '资源不存在';
