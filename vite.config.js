@@ -39,11 +39,19 @@ export default defineConfig({
         replacement: path.resolve(__dirname, 'src/web/react-native-svg.tsx'),
       },
       {
+        find: /^react-native-screens$/,
+        replacement: path.resolve(__dirname, 'src/web/react-native-screens.tsx'),
+      },
+      {
         find: /^react-native\/Libraries\/Utilities\/codegenNativeComponent$/,
         replacement: path.resolve(
           __dirname,
           'src/web/codegenNativeComponent.js',
         ),
+      },
+      {
+        find: /^react-native\/Libraries\/ReactNative\/AppContainer$/,
+        replacement: path.resolve(__dirname, 'src/web/AppContainer.js'),
       },
     ],
     extensions: ['.web.tsx', '.web.ts', '.web.js', '.tsx', '.ts', '.js'],
