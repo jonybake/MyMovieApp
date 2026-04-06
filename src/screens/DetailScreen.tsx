@@ -1,6 +1,8 @@
-import React from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
+  ActivityIndicator,
   Image,
+  Linking,
   Pressable,
   SafeAreaView,
   ScrollView,
@@ -10,6 +12,8 @@ import {
   View,
 } from 'react-native';
 import VideoPlayer from '../components/VideoPlayer';
+import { loadMovieDetail, loadMovieVideos, MovieCast, MovieDetail, MovieVideo } from '../api';
+import { getPosterUrl } from '../utils/image';
 
 type NavigationLike = {
   goBack: () => void;
@@ -17,137 +21,193 @@ type NavigationLike = {
 
 type DetailScreenProps = {
   navigation: NavigationLike;
+  route?: {
+    params?: {
+      movieId?: number;
+    };
+  };
 };
 
-type RecommendItem = {
-  id: string;
-  title: string;
-  tag: string;
-  poster: string;
-};
+const fallbackVideoUrl = 'https://vjs.zencdn.net/v/oceans.mp4';
 
-const videoUrl = 'https://vjs.zencdn.net/v/oceans.mp4';
+function getMovieYear(movie?: MovieDetail) {
+  return movie?.release_date?.slice(0, 4) || '待定';
+}
 
-const recommends: RecommendItem[] = [
-  {
-    id: '1',
-    title: '夜魔侠：重生',
-    tag: '热门',
-    poster: 'https://image.tmdb.org/t/p/w500/9l1eZiJHmhr5jIlthMdJN5WYoff.jpg',
-  },
-  {
-    id: '2',
-    title: '奥本海默',
-    tag: '高分',
-    poster: 'https://image.tmdb.org/t/p/w500/8Gxv2mYmUpepXSuvaH0jhw19oXl.jpg',
-  },
-  {
-    id: '3',
-    title: '沙丘: 第二部',
-    tag: '推荐',
-    poster: 'https://image.tmdb.org/t/p/w500/8b8R8l88Qje9dn9OE8PY05Nxl1X.jpg',
-  },
-];
+function getTrailerUrl(video?: MovieVideo) {
+  if (!video) {
+    return '';
+  }
 
-export default function DetailScreen({ navigation }: DetailScreenProps) {
+  if (video.site === 'YouTube') {
+    return `https://www.youtube.com/watch?v=${video.key}`;
+  }
+
+  if (video.site === 'Vimeo') {
+    return `https://vimeo.com/${video.key}`;
+  }
+
+  return '';
+}
+
+export default function DetailScreen({ navigation, route }: DetailScreenProps) {
+  const movieId = route?.params?.movieId;
+  const [movie, setMovie] = useState<MovieDetail | null>(null);
+  const [videos, setVideos] = useState<MovieVideo[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    let mounted = true;
+
+    const loadData = async () => {
+      if (!movieId) {
+        setLoading(false);
+        return;
+      }
+
+      try {
+        const [detail, movieVideos] = await Promise.all([
+          loadMovieDetail(movieId),
+          loadMovieVideos(movieId),
+        ]);
+
+        if (mounted) {
+          setMovie(detail);
+          setVideos(movieVideos);
+        }
+      } catch (error) {
+        console.error('Failed to load movie detail', error);
+        if (mounted) {
+          setMovie(null);
+          setVideos([]);
+        }
+      } finally {
+        if (mounted) {
+          setLoading(false);
+        }
+      }
+    };
+
+    loadData();
+
+    return () => {
+      mounted = false;
+    };
+  }, [movieId]);
+
+  const trailer = useMemo(
+    () =>
+      videos.find((item) => item.site === 'YouTube' && item.type === 'Trailer') ||
+      videos.find((item) => item.site === 'YouTube') ||
+      videos[0],
+    [videos],
+  );
+  const trailerUrl = getTrailerUrl(trailer);
+  const castList = movie?.credits?.cast?.slice(0, 8) ?? [];
+  const genreLabel = movie?.genres?.map((item) => item.name).join(' / ') || '电影';
+
   return (
     <SafeAreaView style={styles.safeArea}>
       <StatusBar barStyle="light-content" backgroundColor="#090909" />
       <View style={styles.container}>
         <View style={styles.playerSection}>
-          <VideoPlayer url={videoUrl} />
+          <VideoPlayer url={fallbackVideoUrl} />
           <View style={styles.playerOverlay} pointerEvents="box-none">
             <View style={styles.playerTop} pointerEvents="box-none">
               <Pressable
-                style={styles.circleButton}
+                style={[styles.circleButton, styles.circleButtonFirst]}
                 onPress={() => navigation.goBack()}
               >
-                <Text style={styles.circleButtonText}>‹</Text>
+                <Text style={styles.circleButtonText}>{'<'}</Text>
               </Pressable>
               <View style={styles.playerActions} pointerEvents="box-none">
-                <Pressable style={styles.circleButton}>
-                  <Text style={styles.circleButtonText}>⇪</Text>
-                </Pressable>
-                <Pressable style={styles.circleButton}>
-                  <Text style={styles.circleButtonText}>☰</Text>
-                </Pressable>
+                {trailerUrl ? (
+                  <Pressable
+                    style={styles.trailerButton}
+                    onPress={() => Linking.openURL(trailerUrl)}
+                  >
+                    <Text style={styles.trailerButtonText}>打开预告片</Text>
+                  </Pressable>
+                ) : null}
               </View>
             </View>
 
             <View style={styles.progressWrap} pointerEvents="none">
-              <Text style={styles.timeText}>01:58</Text>
-              <View style={styles.progressBar}>
-                <View style={styles.progressCurrent} />
+              <Text style={styles.playerTip}>TMDB 仅提供预告片链接，不提供正片流</Text>
+            </View>
+          </View>
+        </View>
+
+        {loading ? (
+          <View style={styles.loadingWrap}>
+            <ActivityIndicator size="large" color="#ff5b55" />
+          </View>
+        ) : (
+          <ScrollView
+            showsVerticalScrollIndicator={false}
+            contentContainerStyle={styles.content}
+          >
+            <View style={styles.titleRow}>
+              <Text style={styles.title}>{movie?.title || '影片详情'}</Text>
+            </View>
+
+            <View style={styles.metaRow}>
+              <View style={styles.scoreBadge}>
+                <Text style={styles.scoreLabel}>
+                  评分 {movie ? movie.vote_average.toFixed(1) : '0.0'}
+                </Text>
               </View>
-              <Text style={styles.timeText}>47:44</Text>
+              <Text style={styles.metaText}>{getMovieYear(movie || undefined)}</Text>
+              <Text style={styles.metaDivider}>·</Text>
+              <Text style={styles.metaText}>{genreLabel}</Text>
             </View>
-          </View>
-        </View>
 
-        <ScrollView
-          showsVerticalScrollIndicator={false}
-          contentContainerStyle={styles.content}
-        >
-          <View style={styles.tabRow}>
-            <Text style={[styles.tabText, styles.tabActive]}>视频</Text>
-            <Text style={styles.tabText}>评论 (36)</Text>
-          </View>
+            <Text style={styles.overview}>
+              {movie?.overview || '暂无详情介绍。'}
+            </Text>
 
-          <View style={styles.titleRow}>
-            <Text style={styles.title}>你是迟来的欢喜</Text>
-            <Pressable>
-              <Text style={styles.infoAction}>简介 ›</Text>
-            </Pressable>
-          </View>
+            {trailerUrl ? (
+              <Pressable
+                style={styles.trailerLinkCard}
+                onPress={() => Linking.openURL(trailerUrl)}
+              >
+                <Text style={styles.trailerLabel}>预告片链接</Text>
+                <Text style={styles.trailerValue} numberOfLines={1}>
+                  {trailerUrl}
+                </Text>
+              </Pressable>
+            ) : null}
 
-          <View style={styles.metaRow}>
-            <View style={styles.scoreBadge}>
-              <Text style={styles.scoreLabel}>豆瓣评分: 7.3</Text>
-            </View>
-            <Text style={styles.genreText}>爱情</Text>
-          </View>
-
-          <View style={styles.section}>
-            <View style={styles.sectionHeader}>
-              <Text style={styles.sectionTitle}>猜你喜欢</Text>
-              <Text style={styles.sectionHint}>›</Text>
-            </View>
-            <ScrollView
-              horizontal
-              showsHorizontalScrollIndicator={false}
-              contentContainerStyle={styles.recommendRow}
-            >
-              {recommends.map((item) => (
-                <Pressable key={item.id} style={styles.recommendCard}>
-                  <View style={styles.recommendPosterWrap}>
-                    <Image
-                      source={{ uri: item.poster }}
-                      style={styles.recommendPoster}
-                    />
-                    <View style={styles.recommendTag}>
-                      <Text style={styles.recommendTagText}>{item.tag}</Text>
+            {castList.length ? (
+              <View style={styles.section}>
+                <View style={styles.sectionHeader}>
+                  <Text style={styles.sectionTitle}>演员表</Text>
+                  <Text style={styles.sectionHint}>{castList.length} 位</Text>
+                </View>
+                <ScrollView
+                  horizontal
+                  showsHorizontalScrollIndicator={false}
+                  contentContainerStyle={styles.castRow}
+                >
+                  {castList.map((item: MovieCast) => (
+                    <View key={item.id} style={styles.castCard}>
+                      <Image
+                        source={{ uri: getPosterUrl(item.profile_path) }}
+                        style={styles.castAvatar}
+                      />
+                      <Text style={styles.castName} numberOfLines={1}>
+                        {item.name}
+                      </Text>
+                      <Text style={styles.castRole} numberOfLines={1}>
+                        {item.character || '演员'}
+                      </Text>
                     </View>
-                  </View>
-                  <Text style={styles.recommendTitle} numberOfLines={1}>
-                    {item.title}
-                  </Text>
-                </Pressable>
-              ))}
-            </ScrollView>
-          </View>
-        </ScrollView>
-
-        <View style={styles.bottomBar}>
-          <Pressable style={styles.commentButton}>
-            <Text style={styles.commentText}>点评一下</Text>
-          </Pressable>
-          <View style={styles.bottomActions}>
-            <Text style={styles.bottomIcon}>☆</Text>
-            <Text style={styles.bottomIcon}>↓</Text>
-            <Text style={styles.bottomIcon}>↗</Text>
-            <Text style={styles.bottomIcon}>i</Text>
-          </View>
-        </View>
+                  ))}
+                </ScrollView>
+              </View>
+            ) : null}
+          </ScrollView>
+        )}
       </View>
     </SafeAreaView>
   );
@@ -181,6 +241,7 @@ const styles = StyleSheet.create({
   },
   playerActions: {
     flexDirection: 'row',
+    alignItems: 'center',
   },
   circleButton: {
     width: 34,
@@ -191,78 +252,56 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(0,0,0,0.34)',
     marginLeft: 8,
   },
+  circleButtonFirst: {
+    marginLeft: 0,
+  },
   circleButtonText: {
     color: '#ffffff',
     fontSize: 16,
     fontWeight: '700',
   },
-  progressWrap: {
-    flexDirection: 'row',
-    alignItems: 'center',
+  trailerButton: {
+    borderRadius: 18,
+    backgroundColor: 'rgba(255,91,85,0.92)',
+    paddingHorizontal: 14,
+    paddingVertical: 8,
   },
-  timeText: {
+  trailerButtonText: {
+    color: '#ffffff',
+    fontSize: 12,
+    fontWeight: '800',
+  },
+  progressWrap: {
+    alignItems: 'flex-start',
+  },
+  playerTip: {
     color: '#f2f2f2',
     fontSize: 12,
     fontWeight: '600',
   },
-  progressBar: {
+  loadingWrap: {
     flex: 1,
-    height: 3,
-    borderRadius: 999,
-    backgroundColor: 'rgba(255,255,255,0.24)',
-    marginHorizontal: 10,
-    overflow: 'hidden',
-  },
-  progressCurrent: {
-    width: '34%',
-    height: '100%',
-    backgroundColor: '#ffffff',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   content: {
     paddingBottom: 96,
   },
-  tabRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 18,
-    paddingTop: 14,
-    gap: 24,
-  },
-  tabText: {
-    color: '#6f6f6f',
-    fontSize: 15,
-    fontWeight: '600',
-    paddingBottom: 10,
-  },
-  tabActive: {
-    color: '#ffffff',
-    borderBottomWidth: 3,
-    borderBottomColor: '#e63737',
-  },
   titleRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
     paddingHorizontal: 18,
     marginTop: 18,
   },
   title: {
-    flex: 1,
     color: '#ffffff',
     fontSize: 22,
     fontWeight: '800',
-    marginRight: 12,
-  },
-  infoAction: {
-    color: '#bababa',
-    fontSize: 14,
-    fontWeight: '600',
   },
   metaRow: {
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: 18,
     marginTop: 14,
+    flexWrap: 'wrap',
   },
   scoreBadge: {
     backgroundColor: '#ff9d48',
@@ -275,10 +314,39 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: '800',
   },
-  genreText: {
+  metaText: {
     color: '#bdbdbd',
     fontSize: 14,
     marginLeft: 10,
+  },
+  metaDivider: {
+    color: '#7d7d7d',
+    fontSize: 14,
+    marginLeft: 10,
+  },
+  overview: {
+    color: '#b8bfd1',
+    fontSize: 13,
+    lineHeight: 20,
+    paddingHorizontal: 18,
+    marginTop: 14,
+  },
+  trailerLinkCard: {
+    marginHorizontal: 18,
+    marginTop: 18,
+    borderRadius: 18,
+    backgroundColor: '#111827',
+    padding: 14,
+  },
+  trailerLabel: {
+    color: '#f3f4f6',
+    fontSize: 13,
+    fontWeight: '700',
+    marginBottom: 6,
+  },
+  trailerValue: {
+    color: '#9ca3af',
+    fontSize: 12,
   },
   section: {
     marginTop: 26,
@@ -300,77 +368,29 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '600',
   },
-  recommendRow: {
+  castRow: {
     paddingHorizontal: 18,
     paddingRight: 6,
   },
-  recommendCard: {
-    width: 108,
+  castCard: {
+    width: 92,
     marginRight: 12,
   },
-  recommendPosterWrap: {
-    position: 'relative',
-    marginBottom: 8,
-  },
-  recommendPoster: {
-    width: 108,
-    height: 150,
+  castAvatar: {
+    width: 92,
+    height: 120,
     borderRadius: 14,
     backgroundColor: '#262626',
+    marginBottom: 8,
   },
-  recommendTag: {
-    position: 'absolute',
-    top: 8,
-    left: 8,
-    borderRadius: 10,
-    backgroundColor: '#ef4444',
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-  },
-  recommendTagText: {
-    color: '#ffffff',
-    fontSize: 10,
-    fontWeight: '800',
-  },
-  recommendTitle: {
+  castName: {
     color: '#ebebeb',
     fontSize: 13,
     fontWeight: '700',
+    marginBottom: 4,
   },
-  bottomBar: {
-    position: 'absolute',
-    left: 0,
-    right: 0,
-    bottom: 0,
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    backgroundColor: '#141414',
-    borderTopWidth: 1,
-    borderTopColor: '#202020',
-  },
-  commentButton: {
-    flex: 1,
-    height: 42,
-    borderRadius: 21,
-    backgroundColor: '#333333',
-    justifyContent: 'center',
-    paddingHorizontal: 16,
-  },
-  commentText: {
-    color: '#9f9f9f',
-    fontSize: 14,
-    fontWeight: '600',
-  },
-  bottomActions: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginLeft: 16,
-    gap: 18,
-  },
-  bottomIcon: {
-    color: '#dcdcdc',
-    fontSize: 22,
+  castRole: {
+    color: '#9ca3af',
+    fontSize: 11,
   },
 });

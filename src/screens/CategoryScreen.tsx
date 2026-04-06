@@ -89,7 +89,7 @@ export default function CategoryScreen({ navigation, route }: any) {
                   movie={movie}
                   meta={getMeta(movie, genreName)}
                   layout="grid"
-                  onPress={() => navigation.navigate('Details')}
+                  onPress={() => navigation.navigate('Details', { movieId: movie.id })}
                 />
               ))}
             </View>

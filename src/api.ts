@@ -29,8 +29,44 @@ export type MovieGenre = {
 
 export type GenreMovie = PopularMovie;
 
+export type MovieCast = {
+  id: number;
+  name: string;
+  character?: string;
+  profile_path?: string | null;
+};
+
+export type MovieDetail = {
+  id: number;
+  title: string;
+  overview: string;
+  poster_path: string | null;
+  backdrop_path: string | null;
+  vote_average: number;
+  popularity?: number;
+  release_date?: string;
+  genres: MovieGenre[];
+  credits?: {
+    cast: MovieCast[];
+  };
+};
+
+export type MovieVideo = {
+  id: string;
+  key: string;
+  name: string;
+  site: string;
+  type: string;
+};
+
 type MovieGenreResponse = {
   genres: MovieGenre[];
+};
+
+type MovieDetailResponse = MovieDetail;
+
+type MovieVideoResponse = {
+  results: MovieVideo[];
 };
 
 export const movieApi = axios.create({
@@ -66,6 +102,26 @@ export async function loadMoviesByGenre(genreId: number, page = 1) {
       with_genres: genreId,
       page,
       sort_by: 'popularity.desc',
+    },
+  });
+
+  return response.data.results ?? [];
+}
+
+export async function loadMovieDetail(movieId: number) {
+  const response = await movieApi.get<MovieDetailResponse>(`/movie/${movieId}`, {
+    params: {
+      append_to_response: 'credits',
+    },
+  });
+
+  return response.data;
+}
+
+export async function loadMovieVideos(movieId: number) {
+  const response = await movieApi.get<MovieVideoResponse>(`/movie/${movieId}/videos`, {
+    params: {
+      language: 'en-US',
     },
   });
 

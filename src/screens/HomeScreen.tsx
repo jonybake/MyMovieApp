@@ -95,7 +95,7 @@ function MovieSection({
             key={movie.id}
             movie={movie}
             meta={getMovieMeta(movie)}
-            onPress={() => navigation.navigate('Details')}
+            onPress={() => navigation.navigate('Details', { movieId: movie.id })}
           />
         ))}
       </ScrollView>
@@ -134,7 +134,7 @@ function CategoryGrid({
             movie={movie}
             meta={getMovieMeta(movie, genreName)}
             layout="grid"
-            onPress={() => navigation.navigate('Details')}
+            onPress={() => navigation.navigate('Details', { movieId: movie.id })}
           />
         ))}
       </View>
@@ -351,7 +351,9 @@ export default function HomeScreen({ navigation }: HomeScreenProps) {
                   >
                     {heroMovies.map((item) => (
                       <View key={item.id} style={[styles.heroPage, { width }]}>
-                        <Pressable onPress={() => navigation.navigate('Details')}>
+                        <Pressable
+                          onPress={() => navigation.navigate('Details', { movieId: item.id })}
+                        >
                           <ImageBackground
                             source={{ uri: getBackdropUrl(item.backdrop_path) }}
                             style={[styles.heroBanner, { width: heroCardWidth }]}
