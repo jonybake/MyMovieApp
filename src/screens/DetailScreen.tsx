@@ -98,15 +98,15 @@ export default function DetailScreen({ navigation }: DetailScreenProps) {
       <View style={styles.container}>
         <View style={styles.playerSection}>
           <VideoPlayer url={videoUrl} />
-          <View style={styles.playerOverlay}>
-            <View style={styles.playerTop}>
+          <View style={styles.playerOverlay} pointerEvents="box-none">
+            <View style={styles.playerTop} pointerEvents="box-none">
               <Pressable
                 style={styles.circleButton}
                 onPress={() => navigation.goBack()}
               >
                 <Text style={styles.circleButtonText}>‹</Text>
               </Pressable>
-              <View style={styles.playerActions}>
+              <View style={styles.playerActions} pointerEvents="box-none">
                 <Pressable style={styles.circleButton}>
                   <Text style={styles.circleButtonText}>⇪</Text>
                 </Pressable>
@@ -116,7 +116,7 @@ export default function DetailScreen({ navigation }: DetailScreenProps) {
               </View>
             </View>
 
-            <View style={styles.progressWrap}>
+            <View style={styles.progressWrap} pointerEvents="none">
               <Text style={styles.timeText}>01:58</Text>
               <View style={styles.progressBar}>
                 <View style={styles.progressCurrent} />

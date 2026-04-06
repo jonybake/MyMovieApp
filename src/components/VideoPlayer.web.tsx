@@ -9,6 +9,8 @@ export default function VideoPlayer({ url }: VideoPlayerProps) {
     <video
       src={url}
       controls
+      playsInline
+      preload="metadata"
       style={{ width: '100%', height: '100%', backgroundColor: 'black' }}
     />
   );
