@@ -1,97 +1,186 @@
-This is a new [**React Native**](https://reactnative.dev) project, bootstrapped using [`@react-native-community/cli`](https://github.com/react-native-community/cli).
+# MyMovieApp
 
-# Getting Started
+一个基于 React Native + Vite Web 适配的电影应用示例项目。
 
-> **Note**: Make sure you have completed the [Set Up Your Environment](https://reactnative.dev/docs/set-up-your-environment) guide before proceeding.
+当前项目已经实现：
 
-## Step 1: Start Metro
+- 全局底部 Tab 导航：`首页 / 发现 / 我的`
+- 首页热门轮播、每日推荐、近期热播
+- 首页顶部分类切换
+- 分类电影列表
+- 详情页通过 TMDB 详情接口加载标题、评分、年份、类型、演员表
+- 预告片链接加载
+- Web 和 Android 双端运行
 
-First, you will need to run **Metro**, the JavaScript build tool for React Native.
+## 技术栈
 
-To start the Metro dev server, run the following command from the root of your React Native project:
+- React Native `0.84.1`
+- React `19.2.3`
+- React Navigation
+- Axios
+- Vite
+- React Native Web
 
-```sh
-# Using npm
+## 目录结构
+
+```text
+src/
+  api.ts
+  components/
+    MoviePosterCard.tsx
+    VideoPlayer.tsx
+    VideoPlayer.web.tsx
+  screens/
+    HomeScreen.tsx
+    SearchScreen.tsx
+    DetailScreen.tsx
+    ProfileScreen.tsx
+    CategoryScreen.tsx
+  utils/
+    image.ts
+```
+
+## 启动项目
+
+### 1. 安装依赖
+
+```bash
+npm install
+```
+
+或
+
+```bash
+yarn
+```
+
+### 2. 启动 Metro
+
+```bash
 npm start
+```
 
-# OR using Yarn
+或
+
+```bash
 yarn start
 ```
 
-## Step 2: Build and run your app
+### 3. 启动 Android
 
-With Metro running, open a new terminal window/pane from the root of your React Native project, and use one of the following commands to build and run your Android or iOS app:
+先确保：
 
-### Android
+- 已连接 Android 真机或启动模拟器
+- `adb devices` 能看到设备处于 `device` 状态
 
-```sh
-# Using npm
+然后执行：
+
+```bash
 npm run android
+```
 
-# OR using Yarn
+或
+
+```bash
 yarn android
 ```
 
-### iOS
+### 4. 启动 Web
 
-For iOS, remember to install CocoaPods dependencies (this only needs to be run on first clone or after updating native deps).
-
-The first time you create a new project, run the Ruby bundler to install CocoaPods itself:
-
-```sh
-bundle install
+```bash
+yarn web
 ```
 
-Then, and every time you update your native dependencies, run:
+默认访问：
 
-```sh
-bundle exec pod install
+```text
+http://localhost:5173/
 ```
 
-For more information, please visit [CocoaPods Getting Started guide](https://guides.cocoapods.org/using/getting-started.html).
+## TMDB 接口说明
 
-```sh
-# Using npm
-npm run ios
+项目当前使用 TMDB Bearer Token 请求接口。
 
-# OR using Yarn
-yarn ios
+主要接口：
+
+- 热门电影列表：`/movie/popular`
+- 电影分类：`/genre/movie/list`
+- 分类筛选：`/discover/movie`
+- 电影详情：`/movie/{id}?append_to_response=credits`
+- 视频列表：`/movie/{id}/videos?language=en-US`
+
+说明：
+
+- Web 端通过 Vite 代理请求 `/api`
+- Android / iOS 端直接请求 `https://api.themoviedb.org/3`
+- TMDB 不提供正片播放流，`/movie/{id}/videos` 获取的是预告片等视频信息
+
+## 当前页面说明
+
+### 首页
+
+- 顶部轮播使用 `/movie/popular?page=1`
+- 前 6 条作为“每日推荐”
+- 第 7 到 12 条作为“近期热播电影”
+- 点击顶部分类会在首页内部切换分类内容
+
+### 详情页
+
+进入详情页时只传 `movieId`。
+
+详情页内部会自行请求：
+
+- 电影详情
+- 演员表
+- 预告片链接
+
+当前展示字段：
+
+- 标题
+- 评分
+- 年份
+- 类型
+
+## 公共组件
+
+### `MoviePosterCard`
+
+位置：
+
+- [`src/components/MoviePosterCard.tsx`](./src/components/MoviePosterCard.tsx)
+
+用途：
+
+- 海报图
+- 热门角标
+- 评分
+- 标题
+- 副标题
+
+热门判断规则：
+
+```ts
+movie.popularity >= 300
 ```
 
-If everything is set up correctly, you should see your new app running in the Android Emulator, iOS Simulator, or your connected device.
+## 已知问题
 
-This is one way to run your app — you can also build it directly from Android Studio or Xcode.
+- 当前 TypeScript 检查仍有一个第三方库报错：
+  - `node_modules/@tamagui/element/src/getWebElement.ts`
+- 这个问题不在当前业务代码内
 
-## Step 3: Modify your app
+## 常用命令
 
-Now that you have successfully run the app, let's make changes!
+```bash
+# 启动 Metro
+npm start
 
-Open `App.tsx` in your text editor of choice and make some changes. When you save, your app will automatically update and reflect these changes — this is powered by [Fast Refresh](https://reactnative.dev/docs/fast-refresh).
+# 启动 Android
+npm run android
 
-When you want to forcefully reload, for example to reset the state of your app, you can perform a full reload:
+# 启动 Web
+yarn web
 
-- **Android**: Press the <kbd>R</kbd> key twice or select **"Reload"** from the **Dev Menu**, accessed via <kbd>Ctrl</kbd> + <kbd>M</kbd> (Windows/Linux) or <kbd>Cmd ⌘</kbd> + <kbd>M</kbd> (macOS).
-- **iOS**: Press <kbd>R</kbd> in iOS Simulator.
-
-## Congratulations! :tada:
-
-You've successfully run and modified your React Native App. :partying_face:
-
-### Now what?
-
-- If you want to add this new React Native code to an existing application, check out the [Integration guide](https://reactnative.dev/docs/integration-with-existing-apps).
-- If you're curious to learn more about React Native, check out the [docs](https://reactnative.dev/docs/getting-started).
-
-# Troubleshooting
-
-If you're having issues getting the above steps to work, see the [Troubleshooting](https://reactnative.dev/docs/troubleshooting) page.
-
-# Learn More
-
-To learn more about React Native, take a look at the following resources:
-
-- [React Native Website](https://reactnative.dev) - learn more about React Native.
-- [Getting Started](https://reactnative.dev/docs/environment-setup) - an **overview** of React Native and how setup your environment.
-- [Learn the Basics](https://reactnative.dev/docs/getting-started) - a **guided tour** of the React Native **basics**.
-- [Blog](https://reactnative.dev/blog) - read the latest official React Native **Blog** posts.
-- [`@facebook/react-native`](https://github.com/facebook/react-native) - the Open Source; GitHub **repository** for React Native.
+# 类型检查
+npx tsc --noEmit
+```
