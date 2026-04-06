@@ -1,11 +1,11 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
-  Image,
   ImageBackground,
   NativeScrollEvent,
   NativeSyntheticEvent,
   Pressable,
+  RefreshControl,
   SafeAreaView,
   ScrollView,
   StatusBar,
@@ -14,25 +14,32 @@ import {
   useWindowDimensions,
   View,
 } from 'react-native';
+import MoviePosterCard from '../components/MoviePosterCard';
 import {
   loadMovieGenres,
+  loadMoviesByGenre,
   loadPopularMovies,
   MovieGenre,
   PopularMovie,
 } from '../api';
-import { getBackdropUrl, getPosterUrl } from '../utils/image';
+import { getBackdropUrl } from '../utils/image';
 
 type NavigationLike = {
-  navigate: (screen: string) => void;
+  navigate: (screen: string, params?: Record<string, unknown>) => void;
 };
 
 type HomeScreenProps = {
   navigation: NavigationLike;
 };
 
-function getMovieMeta(movie: PopularMovie) {
+type HomeTab = {
+  id: number;
+  name: string;
+};
+
+function getMovieMeta(movie: PopularMovie, fallbackLabel = '热门电影') {
   const year = movie.release_date?.slice(0, 4) || '待定';
-  return `${year} · 热门电影`;
+  return `${year} · ${fallbackLabel}`;
 }
 
 function SectionHeader({
@@ -84,30 +91,53 @@ function MovieSection({
         contentContainerStyle={styles.movieRow}
       >
         {movies.map((movie) => (
-          <Pressable
+          <MoviePosterCard
             key={movie.id}
-            style={styles.movieCard}
+            movie={movie}
+            meta={getMovieMeta(movie)}
             onPress={() => navigation.navigate('Details')}
-          >
-            <View style={styles.posterWrap}>
-              <Image
-                source={{ uri: getPosterUrl(movie.poster_path) }}
-                style={styles.poster}
-              />
-              <View style={styles.tagPill}>
-                <Text style={styles.tagPillText}>热门</Text>
-              </View>
-              <View style={styles.scorePill}>
-                <Text style={styles.scoreText}>★ {movie.vote_average.toFixed(1)}</Text>
-              </View>
-            </View>
-            <Text style={styles.movieTitle} numberOfLines={1}>
-              {movie.title}
-            </Text>
-            <Text style={styles.movieMeta}>{getMovieMeta(movie)}</Text>
-          </Pressable>
+          />
         ))}
       </ScrollView>
+    </View>
+  );
+}
+
+function CategoryGrid({
+  movies,
+  genreName,
+  navigation,
+}: {
+  movies: PopularMovie[];
+  genreName: string;
+  navigation: NavigationLike;
+}) {
+  if (!movies.length) {
+    return (
+      <View style={styles.emptyState}>
+        <Text style={styles.emptyTitle}>暂无内容</Text>
+        <Text style={styles.emptyDesc}>这个分类暂时还没有可展示的电影。</Text>
+      </View>
+    );
+  }
+
+  return (
+    <View style={styles.categorySection}>
+      <View style={styles.categoryHeader}>
+        <Text style={styles.sectionTitle}>{genreName}</Text>
+        <Text style={styles.categoryHint}>热门片单</Text>
+      </View>
+      <View style={styles.categoryGrid}>
+        {movies.map((movie) => (
+          <MoviePosterCard
+            key={movie.id}
+            movie={movie}
+            meta={getMovieMeta(movie, genreName)}
+            layout="grid"
+            onPress={() => navigation.navigate('Details')}
+          />
+        ))}
+      </View>
     </View>
   );
 }
@@ -115,7 +145,11 @@ function MovieSection({
 export default function HomeScreen({ navigation }: HomeScreenProps) {
   const [popularMovies, setPopularMovies] = useState<PopularMovie[]>([]);
   const [movieGenres, setMovieGenres] = useState<MovieGenre[]>([]);
+  const [categoryMovies, setCategoryMovies] = useState<Record<number, PopularMovie[]>>({});
+  const [selectedTabId, setSelectedTabId] = useState(0);
   const [loading, setLoading] = useState(true);
+  const [categoryLoading, setCategoryLoading] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
   const [activeHeroIndex, setActiveHeroIndex] = useState(0);
   const { width } = useWindowDimensions();
   const heroCardWidth = width - 32;
@@ -150,13 +184,60 @@ export default function HomeScreen({ navigation }: HomeScreenProps) {
     };
   }, []);
 
+  useEffect(() => {
+    let mounted = true;
+
+    if (selectedTabId === 0 || categoryMovies[selectedTabId]) {
+      return () => {
+        mounted = false;
+      };
+    }
+
+    const loadCategoryData = async () => {
+      setCategoryLoading(true);
+
+      try {
+        const movies = await loadMoviesByGenre(selectedTabId, 1);
+        if (mounted) {
+          setCategoryMovies((current) => ({
+            ...current,
+            [selectedTabId]: movies.slice(0, 12),
+          }));
+        }
+      } catch (error) {
+        console.error('Failed to load category movies', error);
+        if (mounted) {
+          setCategoryMovies((current) => ({
+            ...current,
+            [selectedTabId]: [],
+          }));
+        }
+      } finally {
+        if (mounted) {
+          setCategoryLoading(false);
+        }
+      }
+    };
+
+    loadCategoryData();
+
+    return () => {
+      mounted = false;
+    };
+  }, [categoryMovies, selectedTabId]);
+
   const heroMovies = useMemo(() => popularMovies.slice(0, 3), [popularMovies]);
   const featuredMovies = useMemo(() => popularMovies.slice(0, 6), [popularMovies]);
   const latestMovies = useMemo(() => popularMovies.slice(6, 12), [popularMovies]);
-  const topTabs = useMemo(
-    () => ['推荐', ...movieGenres.slice(0, 5).map((genre) => genre.name)],
+  const topTabs = useMemo<HomeTab[]>(
+    () => [{ id: 0, name: '推荐' }, ...movieGenres.slice(0, 5)],
     [movieGenres],
   );
+  const selectedGenre = useMemo(
+    () => topTabs.find((tab) => tab.id === selectedTabId),
+    [selectedTabId, topTabs],
+  );
+  const selectedCategoryMovies = categoryMovies[selectedTabId] ?? [];
 
   const handleHeroScroll = (event: NativeSyntheticEvent<NativeScrollEvent>) => {
     const pageWidth = event.nativeEvent.layoutMeasurement.width;
@@ -170,11 +251,44 @@ export default function HomeScreen({ navigation }: HomeScreenProps) {
     }
   };
 
+  const handleRefresh = async () => {
+    setRefreshing(true);
+
+    try {
+      const [movies, genres] = await Promise.all([
+        loadPopularMovies(1),
+        loadMovieGenres(),
+      ]);
+
+      setPopularMovies(movies);
+      setMovieGenres(genres);
+      setCategoryMovies({});
+      setActiveHeroIndex(0);
+    } catch (error) {
+      console.error('Failed to refresh home data', error);
+    } finally {
+      setRefreshing(false);
+    }
+  };
+
   return (
     <SafeAreaView style={styles.safeArea}>
       <StatusBar barStyle="light-content" backgroundColor="#05070d" />
       <View style={styles.container}>
         <ScrollView
+          refreshControl={
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={handleRefresh}
+              tintColor="#ff5b55"
+              colors={['#ff5b55']}
+              progressBackgroundColor="#101626"
+              progressViewOffset={8}
+            />
+          }
+          alwaysBounceVertical
+          bounces
+          overScrollMode="always"
           showsVerticalScrollIndicator={false}
           contentContainerStyle={styles.scrollContent}
         >
@@ -198,84 +312,108 @@ export default function HomeScreen({ navigation }: HomeScreenProps) {
             </Pressable>
           </View>
 
-          <View style={styles.tabRow}>
-            {topTabs.map((tab, index) => (
-              <Text
-                key={tab}
-                style={[styles.tabText, index === 0 && styles.tabTextActive]}
-              >
-                {tab}
-              </Text>
-            ))}
-          </View>
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.tabRow}
+          >
+            {topTabs.map((tab) => {
+              const isActive = tab.id === selectedTabId;
+              return (
+                <Pressable
+                  key={`${tab.id}-${tab.name}`}
+                  style={[styles.tabButton, isActive && styles.tabButtonActive]}
+                  onPress={() => setSelectedTabId(tab.id)}
+                >
+                  <Text style={[styles.tabText, isActive && styles.tabTextActive]}>
+                    {tab.name}
+                  </Text>
+                </Pressable>
+              );
+            })}
+          </ScrollView>
 
           {loading ? (
             <View style={styles.loadingHero}>
               <ActivityIndicator size="large" color="#ff5b55" />
             </View>
-          ) : heroMovies.length ? (
-            <View>
-              <ScrollView
-                horizontal
-                pagingEnabled
-                showsHorizontalScrollIndicator={false}
-                onScroll={handleHeroScroll}
-                onMomentumScrollEnd={handleHeroScroll}
-                scrollEventThrottle={16}
-              >
-                {heroMovies.map((item) => (
-                  <View key={item.id} style={[styles.heroPage, { width }]}>
-                    <Pressable onPress={() => navigation.navigate('Details')}>
-                      <ImageBackground
-                        source={{ uri: getBackdropUrl(item.backdrop_path) }}
-                        style={[styles.heroBanner, { width: heroCardWidth }]}
-                        imageStyle={styles.heroImage}
-                      >
-                        <View style={styles.heroOverlay} />
-                        <View style={styles.heroContent}>
-                          <Text style={styles.heroBadge}>热门推荐</Text>
-                          <Text style={styles.heroTitle}>{item.title}</Text>
-                          <Text style={styles.heroSubtitle} numberOfLines={2}>
-                            {item.overview || '当前最受关注的电影，正在热播中。'}
-                          </Text>
-                          <View style={styles.heroActions}>
-                            <View style={styles.playButton}>
-                              <Text style={styles.playButtonText}>立即观看</Text>
+          ) : selectedTabId === 0 ? (
+            <>
+              {heroMovies.length ? (
+                <View>
+                  <ScrollView
+                    horizontal
+                    pagingEnabled
+                    showsHorizontalScrollIndicator={false}
+                    onScroll={handleHeroScroll}
+                    onMomentumScrollEnd={handleHeroScroll}
+                    scrollEventThrottle={16}
+                  >
+                    {heroMovies.map((item) => (
+                      <View key={item.id} style={[styles.heroPage, { width }]}>
+                        <Pressable onPress={() => navigation.navigate('Details')}>
+                          <ImageBackground
+                            source={{ uri: getBackdropUrl(item.backdrop_path) }}
+                            style={[styles.heroBanner, { width: heroCardWidth }]}
+                            imageStyle={styles.heroImage}
+                          >
+                            <View style={styles.heroOverlay} />
+                            <View style={styles.heroContent}>
+                              <Text style={styles.heroBadge}>热门推荐</Text>
+                              <Text style={styles.heroTitle}>{item.title}</Text>
+                              <Text style={styles.heroSubtitle} numberOfLines={2}>
+                                {item.overview || '当前最受关注的电影，正在热播中。'}
+                              </Text>
+                              <View style={styles.heroActions}>
+                                <View style={styles.playButton}>
+                                  <Text style={styles.playButtonText}>立即观看</Text>
+                                </View>
+                              </View>
                             </View>
-                          </View>
-                        </View>
-                      </ImageBackground>
-                    </Pressable>
+                          </ImageBackground>
+                        </Pressable>
+                      </View>
+                    ))}
+                  </ScrollView>
+                  <View style={styles.heroDotsStandalone}>
+                    {heroMovies.map((movie, index) => (
+                      <View
+                        key={movie.id}
+                        style={[
+                          styles.dot,
+                          index === activeHeroIndex && styles.dotActive,
+                        ]}
+                      />
+                    ))}
                   </View>
-                ))}
-              </ScrollView>
-              <View style={styles.heroDotsStandalone}>
-                {heroMovies.map((movie, index) => (
-                  <View
-                    key={movie.id}
-                    style={[
-                      styles.dot,
-                      index === activeHeroIndex && styles.dotActive,
-                    ]}
-                  />
-                ))}
-              </View>
+                </View>
+              ) : null}
+
+              <MovieSection
+                title="每日推荐"
+                actionLabel="更多"
+                movies={featuredMovies}
+                navigation={navigation}
+              />
+
+              <MovieSection
+                title="近期热播电影"
+                actionLabel="片库"
+                movies={latestMovies}
+                navigation={navigation}
+              />
+            </>
+          ) : categoryLoading ? (
+            <View style={styles.loadingCategory}>
+              <ActivityIndicator size="large" color="#ff5b55" />
             </View>
-          ) : null}
-
-          <MovieSection
-            title="每日推荐"
-            actionLabel="更多"
-            movies={featuredMovies}
-            navigation={navigation}
-          />
-
-          <MovieSection
-            title="近期热播电影"
-            actionLabel="片库"
-            movies={latestMovies}
-            navigation={navigation}
-          />
+          ) : (
+            <CategoryGrid
+              movies={selectedCategoryMovies}
+              genreName={selectedGenre?.name ?? '分类'}
+              navigation={navigation}
+            />
+          )}
         </ScrollView>
       </View>
     </SafeAreaView>
@@ -292,6 +430,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#05070d',
   },
   scrollContent: {
+    flexGrow: 1,
     paddingBottom: 110,
   },
   topBar: {
@@ -352,16 +491,24 @@ const styles = StyleSheet.create({
     fontSize: 16,
   },
   tabRow: {
-    flexDirection: 'row',
-    paddingHorizontal: 18,
+    paddingHorizontal: 12,
     paddingTop: 18,
     paddingBottom: 14,
-    gap: 18,
+    gap: 10,
+  },
+  tabButton: {
+    borderRadius: 999,
+    backgroundColor: '#101626',
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+  },
+  tabButtonActive: {
+    backgroundColor: '#1c2740',
   },
   tabText: {
     color: '#7c8395',
-    fontSize: 15,
-    fontWeight: '600',
+    fontSize: 14,
+    fontWeight: '700',
   },
   tabTextActive: {
     color: '#ffffff',
@@ -373,6 +520,11 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: '#171b28',
+  },
+  loadingCategory: {
+    minHeight: 360,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   heroPage: {
     alignItems: 'center',
@@ -475,56 +627,41 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingRight: 6,
   },
-  movieCard: {
-    width: 138,
-    marginRight: 14,
+  categorySection: {
+    paddingHorizontal: 12,
+    paddingTop: 8,
   },
-  posterWrap: {
-    position: 'relative',
-    marginBottom: 10,
+  categoryHeader: {
+    paddingHorizontal: 4,
+    marginBottom: 16,
   },
-  poster: {
-    width: 138,
-    height: 194,
-    borderRadius: 18,
-    backgroundColor: '#1b2030',
-  },
-  tagPill: {
-    position: 'absolute',
-    top: 8,
-    left: 8,
-    borderRadius: 12,
-    backgroundColor: '#ef4444',
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-  },
-  tagPillText: {
-    color: '#ffffff',
-    fontSize: 10,
-    fontWeight: '800',
-  },
-  scorePill: {
-    position: 'absolute',
-    right: 8,
-    bottom: 8,
-    borderRadius: 12,
-    backgroundColor: 'rgba(0,0,0,0.68)',
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-  },
-  scoreText: {
-    color: '#f8dd78',
-    fontSize: 11,
-    fontWeight: '700',
-  },
-  movieTitle: {
-    color: '#eef2ff',
-    fontSize: 15,
-    fontWeight: '700',
-    marginBottom: 4,
-  },
-  movieMeta: {
-    color: '#838ca5',
+  categoryHint: {
+    color: '#8f99b2',
     fontSize: 12,
+    marginTop: 4,
+  },
+  categoryGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'space-between',
+  },
+  emptyState: {
+    marginHorizontal: 16,
+    marginTop: 20,
+    padding: 24,
+    borderRadius: 22,
+    backgroundColor: '#101626',
+    alignItems: 'center',
+  },
+  emptyTitle: {
+    color: '#ffffff',
+    fontSize: 16,
+    fontWeight: '800',
+    marginBottom: 8,
+  },
+  emptyDesc: {
+    color: '#8f99b2',
+    fontSize: 13,
+    textAlign: 'center',
   },
 });

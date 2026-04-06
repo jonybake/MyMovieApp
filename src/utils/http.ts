@@ -4,12 +4,16 @@ import axios, {
   AxiosResponse,
   InternalAxiosRequestConfig,
 } from 'axios';
+import { Platform } from 'react-native';
 
 const TMDB_BEARER_TOKEN =
   'Bearer eyJhbGciOiJIUzI1NiJ9.eyJhdWQiOiJjOTkzNGI3YmVlOWQ0MWY1YTU0ODRhMzdiMGVhZWMxZiIsIm5iZiI6MTc3NTQxNjU2Ny44MDE5OTk4LCJzdWIiOiI2OWQyYjRmNzExMzFiMTJmYzc3NzBlODMiLCJzY29wZXMiOlsiYXBpX3JlYWQiXSwidmVyc2lvbiI6MX0.ySP8TOXyz82MjCSW8J0CyEJ7mux2NrVxk6bpOz7RLgM';
 
+const TMDB_BASE_URL =
+  Platform.OS === 'web' ? '/api' : 'https://api.themoviedb.org/3';
+
 const http: AxiosInstance = axios.create({
-  baseURL: '/api',
+  baseURL: TMDB_BASE_URL,
   timeout: 10000,
   headers: {
     Authorization: TMDB_BEARER_TOKEN,

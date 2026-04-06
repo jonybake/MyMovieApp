@@ -5,6 +5,7 @@ import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { StyleSheet, Text, View } from 'react-native';
 import { TamaguiProvider, Theme } from 'tamagui';
 import config from '../tamagui.config';
+import CategoryScreen from './screens/CategoryScreen';
 import DetailScreen from './screens/DetailScreen';
 import HomeScreen from './screens/HomeScreen';
 import ProfileScreen from './screens/ProfileScreen';
@@ -47,9 +48,7 @@ function MainTabs() {
         component={HomeScreen}
         options={{
           title: '首页',
-          tabBarIcon: ({ focused }) => (
-            <TabIcon focused={focused} label="首页" />
-          ),
+          tabBarIcon: ({ focused }) => <TabIcon focused={focused} label="首页" />,
         }}
       />
       <Tab.Screen
@@ -57,9 +56,7 @@ function MainTabs() {
         component={SearchScreen}
         options={{
           title: '发现',
-          tabBarIcon: ({ focused }) => (
-            <TabIcon focused={focused} label="发现" />
-          ),
+          tabBarIcon: ({ focused }) => <TabIcon focused={focused} label="发现" />,
         }}
       />
       <Tab.Screen
@@ -67,9 +64,7 @@ function MainTabs() {
         component={ProfileScreen}
         options={{
           title: '我的',
-          tabBarIcon: ({ focused }) => (
-            <TabIcon focused={focused} label="我的" />
-          ),
+          tabBarIcon: ({ focused }) => <TabIcon focused={focused} label="我的" />,
         }}
       />
     </Tab.Navigator>
@@ -98,6 +93,11 @@ export default function App() {
               <RootStack.Screen
                 name="Details"
                 component={DetailScreen}
+                options={{ headerShown: false }}
+              />
+              <RootStack.Screen
+                name="Category"
+                component={CategoryScreen}
                 options={{ headerShown: false }}
               />
             </RootStack.Navigator>
