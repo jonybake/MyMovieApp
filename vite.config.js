@@ -1,14 +1,51 @@
+import path from 'path';
+import { fileURLToPath } from 'url';
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
 export default defineConfig({
+  define: {
+    'process.env.NODE_ENV': JSON.stringify(process.env.NODE_ENV ?? 'development'),
+    process: JSON.stringify({
+      env: {
+        NODE_ENV: process.env.NODE_ENV ?? 'development',
+      },
+    }),
+  },
+  optimizeDeps: {
+    force: true,
+  },
   plugins: [react()],
-  resolve: {
-    alias: {
-      // 核心：拦截原生引用，转到 Web 实现
-      'react-native': 'react-native-web',
+  server: {
+    proxy: {
+      '/api': {
+        target: 'https://api.themoviedb.org/3',
+        changeOrigin: true,
+        rewrite: (path) => path.replace(/^\/api/, ''),
+      },
     },
-    // 优先级排序：.web 后缀的文件会被优先加载，用于处理平台差异
+  },
+  resolve: {
+    alias: [
+      {
+        find: /^react-native$/,
+        replacement: path.resolve(__dirname, 'node_modules/react-native-web'),
+      },
+      {
+        find: /^react-native-svg$/,
+        replacement: path.resolve(__dirname, 'src/web/react-native-svg.tsx'),
+      },
+      {
+        find: /^react-native\/Libraries\/Utilities\/codegenNativeComponent$/,
+        replacement: path.resolve(
+          __dirname,
+          'src/web/codegenNativeComponent.js',
+        ),
+      },
+    ],
     extensions: ['.web.tsx', '.web.ts', '.web.js', '.tsx', '.ts', '.js'],
   },
 });
