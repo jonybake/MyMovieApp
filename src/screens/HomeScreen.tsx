@@ -493,12 +493,15 @@ const styles = StyleSheet.create({
     fontSize: 16,
   },
   tabRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
     paddingHorizontal: 12,
     paddingTop: 18,
     paddingBottom: 14,
     gap: 10,
   },
   tabButton: {
+    alignSelf: 'flex-start',
     borderRadius: 999,
     backgroundColor: '#101626',
     paddingHorizontal: 14,
