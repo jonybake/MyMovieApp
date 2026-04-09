@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   ActivityIndicator,
   Image,
@@ -10,7 +10,7 @@ import {
   TextInput,
   View,
 } from 'react-native';
-import { movieApi } from '../api';
+import { loadPopularMovies, movieApi, PopularMovie } from '../api';
 
 type MovieSearchResult = {
   id: number;
@@ -24,8 +24,6 @@ type SearchResponse = {
   results: MovieSearchResult[];
 };
 
-const hotKeywords = ['沙丘', '奥本海默', '夜魔侠', '爱情电影', '科幻冒险'];
-
 function getPosterUrl(path?: string | null) {
   if (!path) {
     return 'https://via.placeholder.com/300x450/1b2235/8f9bb3?text=No+Poster';
@@ -38,6 +36,38 @@ export default function SearchScreen() {
   const [query, setQuery] = useState('');
   const [results, setResults] = useState<MovieSearchResult[]>([]);
   const [loading, setLoading] = useState(false);
+  const [hotKeywords, setHotKeywords] = useState<string[]>([]);
+
+  useEffect(() => {
+    let mounted = true;
+
+    const loadHotKeywords = async () => {
+      try {
+        const movies: PopularMovie[] = await loadPopularMovies(1);
+        if (!mounted) {
+          return;
+        }
+
+        setHotKeywords(
+          movies
+            .map((movie) => movie.title)
+            .filter(Boolean)
+            .slice(0, 6),
+        );
+      } catch (error) {
+        console.error('Failed to load hot keywords', error);
+        if (mounted) {
+          setHotKeywords([]);
+        }
+      }
+    };
+
+    loadHotKeywords();
+
+    return () => {
+      mounted = false;
+    };
+  }, []);
 
   const handleSearch = async (text: string) => {
     setQuery(text);
@@ -86,22 +116,24 @@ export default function SearchScreen() {
             />
           </View>
 
-          <View style={styles.quickSection}>
-            <View style={styles.sectionHeader}>
-              <Text style={styles.sectionTitle}>热门搜索</Text>
+          {!query.trim() && hotKeywords.length ? (
+            <View style={styles.quickSection}>
+              <View style={styles.sectionHeader}>
+                <Text style={styles.sectionTitle}>热门搜索</Text>
+              </View>
+              <View style={styles.keywordWrap}>
+                {hotKeywords.map((keyword) => (
+                  <Pressable
+                    key={keyword}
+                    style={styles.keywordChip}
+                    onPress={() => handleSearch(keyword)}
+                  >
+                    <Text style={styles.keywordText}>{keyword}</Text>
+                  </Pressable>
+                ))}
+              </View>
             </View>
-            <View style={styles.keywordWrap}>
-              {hotKeywords.map((keyword) => (
-                <Pressable
-                  key={keyword}
-                  style={styles.keywordChip}
-                  onPress={() => handleSearch(keyword)}
-                >
-                  <Text style={styles.keywordText}>{keyword}</Text>
-                </Pressable>
-              ))}
-            </View>
-          </View>
+          ) : null}
 
           <View style={styles.resultsHeader}>
             <Text style={styles.sectionTitle}>
@@ -138,7 +170,7 @@ export default function SearchScreen() {
                     </Text>
                   </View>
                   <Text style={styles.resultHint}>
-                    点击查看详情、播放线路和相关推荐
+                    点击查看详情、演员信息和相关推荐
                   </Text>
                 </View>
               </Pressable>
@@ -148,7 +180,7 @@ export default function SearchScreen() {
               <View style={styles.emptyState}>
                 <Text style={styles.emptyTitle}>先搜索一部电影试试</Text>
                 <Text style={styles.emptyDesc}>
-                  可以输入片名、演员名，或者点上面的热门关键词快速查看
+                  可以输入片名、演员名，或者直接搜索你最近想看的电影
                 </Text>
               </View>
             ) : null}
@@ -236,7 +268,7 @@ const styles = StyleSheet.create({
     fontWeight: '700',
   },
   resultsHeader: {
-    marginTop: 28,
+    marginTop: 22,
     marginBottom: 14,
     flexDirection: 'row',
     alignItems: 'center',
